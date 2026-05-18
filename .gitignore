@@ -1,0 +1,10 @@
+_build/
+_checkouts/
+.rebar3/
+rebar.lock
+erl_crash.dump
+rebar3.crashdump
+
+.idea/
+*.swp
+.DS_Store

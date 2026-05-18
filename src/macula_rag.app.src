@@ -1,0 +1,22 @@
+{application, macula_rag, [
+    {description, "Federated semantic retrieval over the Macula mesh"},
+    {vsn, "0.1.0"},
+    {registered, [macula_rag_sup, macula_rag_advertiser, macula_rag_router]},
+    {mod, {macula_rag_app, []}},
+    {applications, [
+        kernel,
+        stdlib,
+        crypto,
+        macula
+    ]},
+    {env, [
+        {bloom_advertise_topic, <<"_mesh.bloom.rag">>},
+        {rpc_method, <<"macula_rag.query">>},
+        {default_query_timeout_ms, 1500}
+    ]},
+    {modules, []},
+    {licenses, ["Apache-2.0"]},
+    {links, [
+        {"Codeberg", "https://codeberg.org/macula-io/macula-rag"}
+    ]}
+]}.

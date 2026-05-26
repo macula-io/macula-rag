@@ -55,7 +55,7 @@ their own search callback in.
 %% advertise our shard's summary into the realm
 ok = macula_rag:advertise(
     my_shard,
-    [<<"hecate-agents/philosophy">>, <<"hecate-agents/skills">>],
+    [<<"hecate-corpus/philosophy">>, <<"hecate-corpus/skills">>],
     BloomBytes
 ).
 

@@ -16,4 +16,4 @@ rebar3 ct
 
 ## Issues
 
-https://codeberg.org/macula-io/macula-rag/issues
+https://github.com/macula-io/macula-rag/issues

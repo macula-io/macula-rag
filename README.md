@@ -77,7 +77,7 @@ to handle text-vs-vector queries, filters, etc.
 
 ## Dependencies
 
-- [`macula`](https://codeberg.org/macula-io/macula) (SDK) - QUIC RPC, pub/sub, bloom-advertise channel
+- [`macula`](https://github.com/macula-io/macula) (SDK) - QUIC RPC, pub/sub, bloom-advertise channel
 - (downstream) `hecate-app-rag` - typical responder
 
 ## Build

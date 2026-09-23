@@ -135,9 +135,9 @@ never asked.
 
 A pushed `vX.Y.Z` tag publishes to hex (`.github/workflows/publish-hex.yml`).
 Before publishing, the workflow refuses anything but the clean, pushed tag
-whose version is in `src/macula_rag.app.src` and has a CHANGELOG section, and
-dry-runs the publish. After publishing it checks that hex serves the tagged
-files.
+whose version is in `src/macula_rag.app.src` and has a CHANGELOG section,
+dry-runs the publish, and checks that hex.pm accepts the key. After publishing
+it checks that hex serves the tagged files.
 
 ## Guides
 

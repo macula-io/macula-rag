@@ -13,6 +13,8 @@ name: Publish to hex
 #   - the package and its docs build;
 #   - the publish command runs as a dry run, so a plugin that cannot read
 #     HEX_API_KEY fails here, not after the tag;
+#   - hex.pm accepts HEX_API_KEY, checked first in the publish job
+#     (scripts/is_hex_publish_key_live.sh);
 #   - after publishing, hex is checked to serve the tagged files
 #     (scripts/is_hex_serving_what_git_says.sh).
 #
@@ -114,6 +116,16 @@ jobs:
         with:
           ref: refs/tags/${{ env.RELEASE_TAG }}
           fetch-depth: 0
+
+      # FIRST check that can run a script from the tag, before anything
+      # reaches hex. A blank or revoked HEX_API_KEY used to surface only inside
+      # `rebar3 hex publish' ("No write key found"). The secret is read at run
+      # time, so after fixing it a re-run of this job is enough. Never prints
+      # the value.
+      - name: Refuse unless hex.pm accepts HEX_API_KEY
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+        run: bash scripts/is_hex_publish_key_live.sh
 
       - name: Set up Erlang/OTP and rebar3
         uses: erlef/setup-beam@v1

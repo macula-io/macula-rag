@@ -1,7 +1,7 @@
 {application, macula_rag, [
-    {description, "Federated semantic retrieval over the Macula mesh"},
+    {description, "Federated retrieval over the Macula mesh: ask every shard of an org, merge the answers"},
     {vsn, "0.1.0"},
-    {registered, [macula_rag_sup, macula_rag_advertiser, macula_rag_router]},
+    {registered, [macula_rag_sup, macula_rag_responder, macula_rag_directory]},
     {mod, {macula_rag_app, []}},
     {applications, [
         kernel,
@@ -9,11 +9,7 @@
         crypto,
         macula
     ]},
-    {env, [
-        {bloom_advertise_topic, <<"_mesh.bloom.rag">>},
-        {rpc_method, <<"macula_rag.query">>},
-        {default_query_timeout_ms, 1500}
-    ]},
+    {env, []},
     {modules, []},
     {licenses, ["Apache-2.0"]},
     {links, [

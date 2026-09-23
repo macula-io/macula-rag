@@ -1,64 +1,64 @@
 # Federation design
 
-This document expands on the architectural choices in `macula_rag`.
+Why macula_rag asks the shards it asks, and why it merges what it merges.
 
-## Why Bloom summaries
+## Who is a shard
 
-A shard with N chunks could advertise its full topic list, but that
-grows linearly. A Bloom filter trades exact answers for fixed-size
-summaries: 1 KiB summarises ~1 K topics at ~1% false-positive rate.
+The obvious design, and the one this library's first scaffold had, is to
+listen for summaries and ask whoever published one. It fails in two ways. A
+summary is a claim: any node that can publish on the topic can say it holds
+anything. And one procedure called once per known shard does not reach the
+shards: macula routes an unnamed call to any provider it chooses, so N calls
+land wherever the mesh picks.
 
-Receivers union all peer Blooms into a "peer bloom" used by the
-router; a query first probes against this union before issuing any
-RPC.
+So the set of shards comes from somewhere a node cannot claim its way into:
+**the providers of the org's procedure**, `<org>/rag.query_shard_v1`. macula 12
+lets a node provide an org-namespaced procedure only when the org's D25
+`procedure_delegation` names it, and `macula:providers/4` lists only providers
+whose delegation verifies against the realm key the pool pinned. Each shard is
+then called by its node id, with `macula:call/6` and `provider`, so every call
+reaches the shard it names and no other.
 
-## Anti-pattern: centralised vector store
+Summaries are still used, for what only the shard can tell: which embedding it
+was built with, and what it holds. A summary from a node that is not a provider
+is never used, because that node is never asked.
 
-The whole point of `macula_rag` is to avoid a central Qdrant /
-pinecone-style service. Realms running this library:
+## Which scores merge
 
-- never need to ship plaintext corpus content across the realm
-  (only the shard summary)
-- can survive offline shards (router skips them)
-- have a clear shape for differential privacy if needed later
-  (Bloom is naturally noise-friendly)
+A similarity score means something only against other scores from the same
+embedding model and dimension. Merging a 0.8 from one model with a 0.7 from
+another produces an order that means nothing, and it looks exactly like a
+good result.
 
-## Quorum and hedged requests
+So every summary names its embedding, and a query asks only shards whose
+embedding matches the querying node's. The shard also names its embedding in
+its answer, and an answer in another embedding is refused, in case the summary
+and the index disagree. A shard with another embedding is not an error; it is
+reported, as `{embedding_mismatch, Theirs}`, so a caller can see that part of
+the org's index was not searched.
 
-The router currently fans to all matching peers and returns
-whoever responds before timeout. Two refinements:
+## Why nothing is dropped
 
-1. **Quorum-of-K**: fan to K peers, wait for `ceil(K/2)+1` responses
-   before returning. Used when the corpus is sharded with replication.
-2. **Hedged**: after p99 latency budget, double the fan-out and
-   take whichever wins. Useful at the tail.
+A federated query that quietly returns fewer results when a shard is down is
+indistinguishable from one where the other shards simply had nothing. The
+caller cannot tell "no match" from "not asked".
 
-Neither is implemented in the scaffold.
+So every trusted shard ends in `answered` or in `failed`, with a reason:
+`no_summary`, `{embedding_mismatch, Theirs}`, `timeout`, `malformed_answer`,
+or the error the shard itself answered. A shard slower than the timeout is
+reported and does not hold up the others: each shard is asked in its own
+process, and at the deadline the rest are stopped and reported as `timeout`.
 
-## TTL
+## The shard's identity
 
-Peer summaries should expire on a TTL (~5 min) so stations that
-drop out cleanly fall off the router's peer set. Macula's existing
-liveness signal (peer_observer's last_inbound_at) is the right
-ground truth.
+One node, one shard. The node id macula verified is the shard's identity: it is
+what the org delegated, what summaries are filed under, and what a hit's
+`node_id` names. `shard_id` is a label for people and is never used to decide
+anything, since a node can put anything in it.
 
-## What this library is not
+## What is left for later
 
-- Not an index. Indexes live in `hecate-vector` or the user's
-  choice of vector store.
-- Not an embedder. Embeddings live in `hecate-embed` or
-  caller-supplied vectors.
-- Not opinionated about query shape. Map in, map out.
-
-## Composition
-
-```
-hecate-app-rag's serve_retrieval
-   ├─ local query: hecate_vector:search via hecate_embed
-   └─ federated:    macula_rag:query/2
-                       ├─ router picks K peers
-                       └─ macula:call (QUIC RPC)
-```
-
-The application decides whether to issue a local-only, federated-only,
-or merged query.
+The summary carries a bloom filter over the shard's topics, and `shards/0`
+lists it. Using it to skip shards that cannot match would cut the fan-out; it
+is not done in 0.1.0, where every trusted shard with a matching embedding is
+asked.

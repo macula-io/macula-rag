@@ -5,8 +5,7 @@ Trunk-based. Commit directly to `main`. No PRs.
 ## Build
 
 ```bash
-rebar3 compile
-rebar3 ct
+scripts/check.sh    # compile, eunit, lint, xref, dialyzer, on the pinned OTP
 ```
 
 ## Style

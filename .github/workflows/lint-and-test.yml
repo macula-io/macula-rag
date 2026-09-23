@@ -1,0 +1,85 @@
+# Lint, EUnit, xref and Dialyzer on every branch push and pull request.
+#
+# Ported from reckon-db-org/evoq's workflow of the same name. macula_rag is a
+# public library on hex; this is the gate between a change here and every
+# consumer of it, and it runs what scripts/check.sh runs on a desk.
+#
+# EUnit includes the federation test, which starts `peer' VMs over standard_io:
+# no distribution and no epmd needed, so it runs on a hosted runner as it does
+# locally.
+
+name: lint-and-test
+
+on:
+  push:
+    # `branches' keeps tag pushes out: a tag names a commit this suite already
+    # ran on, and publish-hex.yml handles tags.
+    branches: ['**']
+    paths-ignore:
+      - '**.md'
+      - 'guides/**'
+      - 'assets/**'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'guides/**'
+      - 'assets/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # From .tool-versions.
+  OTP_VERSION: '28.4.3'
+  REBAR3_VERSION: '3.27.0'
+
+concurrency:
+  group: lint-and-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: lint + eunit + xref + dialyzer (OTP 28.4.3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Erlang/OTP and rebar3
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          rebar3-version: ${{ env.REBAR3_VERSION }}
+          version-type: strict
+
+      - name: Refuse unless the Erlang is the pinned one
+        run: bash scripts/is_erlang_the_pinned_version.sh
+
+      # The hex cache and the PLT, not `_build': a cached `_build' restores
+      # stale beams, and a deleted test module keeps running from one.
+      - name: Cache hex deps and the Dialyzer PLT
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/rebar3
+            _build/default/*_plt
+          key: macula_rag-otp${{ env.OTP_VERSION }}-${{ hashFiles('rebar.config', 'src/*.app.src') }}
+          restore-keys: |
+            macula_rag-otp${{ env.OTP_VERSION }}-
+
+      - name: Compile
+        run: rebar3 compile
+
+      - name: Lint
+        run: rebar3 lint
+
+      - name: EUnit
+        run: rebar3 eunit
+
+      - name: Xref
+        run: rebar3 xref
+
+      - name: Dialyzer
+        run: rebar3 dialyzer

@@ -1,108 +1,166 @@
-%%% @doc Handles incoming federated queries.
+%%% @doc This node's shard answering the org's queries.
 %%%
-%%% At configure/2 time, advertises the RPC method
-%%% `<<"macula-rag.query">>' against the configured pool + realm.
-%%% Inbound calls invoke `dispatch/1` (this module, exported MFA
-%%% form) which dispatches into every registered responder callback,
-%%% merges + ranks hits, returns the response.
+%%% Holds whether the node may provide the org's procedure and advertises it
+%%% once it may. macula only lets a node provide an org's procedure when the
+%%% org's D25 delegation names it (`macula:provider_authorization/3'). The
+%%% responder asks at registration and, while refused, again every
+%%% `grant_retry_ms', so a delegation made after the service started is picked
+%%% up: it advertises then, once. After that it asks nothing: macula replays the
+%%% advertisement itself when a link respawns.
+%%%
+%%% The callback runs in the process macula calls `handle/1' in, not in this
+%%% server, so one slow query holds up no other. It is kept in
+%%% persistent_term, written only when a responder registers or unregisters.
 -module(macula_rag_responder).
 -behaviour(gen_server).
 
--export([start_link/0, register/2, unregister/1, bind/0, dispatch/1, rpc_method/0]).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
+-export([start_link/0, register/1, unregister/0, rebind/0, status/0]).
+-export([handle/1, answer_locally/1]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 
--record(state, {
-    callbacks = #{} :: #{macula_rag:shard_id() => fun()},
-    advertised = false :: boolean()
+-define(RESPONDER, {?MODULE, responder}).
+
+-record(st, {
+    grant = not_registered :: not_registered | granted | {not_granted, term(), integer()},
+    epoch = 0 :: non_neg_integer()
 }).
 
-%%% API
+%%------------------------------------------------------------------------------
+%% API
+%%------------------------------------------------------------------------------
 
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-register(ShardId, Fun) when is_function(Fun, 2) ->
-    gen_server:call(?MODULE, {register, ShardId, Fun}).
+-spec register(macula_rag:responder()) -> ok | {error, not_configured}.
+register(Responder) ->
+    gen_server:call(?MODULE, {register, Responder}).
 
-unregister(ShardId) ->
-    gen_server:call(?MODULE, {unregister, ShardId}).
+-spec unregister() -> ok.
+unregister() ->
+    gen_server:call(?MODULE, unregister).
 
-%% @doc Called by macula_rag:configure/2 to (re-)advertise the RPC
-%% method against the current pool + realm.
--spec bind() -> ok | {error, term()}.
-bind() ->
-    gen_server:call(?MODULE, bind).
+%% @doc Called by `macula_rag:configure/3': a registered responder asks for its
+%% grant again under the new configuration.
+-spec rebind() -> ok.
+rebind() ->
+    gen_server:call(?MODULE, rebind).
 
--spec rpc_method() -> binary().
-rpc_method() ->
-    application:get_env(macula_rag, rpc_method, <<"macula-rag.query">>).
+-spec status() -> not_registered | granted | {not_granted, #{reason := term(), since_ms := integer()}}.
+status() ->
+    gen_server:call(?MODULE, status).
 
-%% @doc Dispatch entry point — registered with the SDK as
-%% `{?MODULE, dispatch}` so the Macula client calls it when an
-%% inbound RPC arrives.
--spec dispatch(map()) -> map() | {error, term()}.
-dispatch(QueryMsg) ->
-    gen_server:call(?MODULE, {rpc, QueryMsg}).
+%% @doc The procedure's handler: what macula calls with a query from another
+%% shard. Returns this shard's answer, or `{error, Reason}', which macula sends
+%% back as the call's error.
+-spec handle(term()) -> map() | {error, term()}.
+handle(Payload) ->
+    handled(macula_rag_contract:parse(query_shard, Payload), macula_rag:configuration(),
+            persistent_term:get(?RESPONDER, undefined)).
 
-%%% gen_server
+%% @doc This node's own shard answering this node's query: the same answer a
+%% peer would get, through the same codec, so hits read alike whichever shard
+%% they came from.
+-spec answer_locally(map()) -> {ok, map()} | {error, term()}.
+answer_locally(Payload) ->
+    locally(handle(wire(Payload))).
+
+locally({error, _} = Refused) -> Refused;
+locally(Reply) -> {ok, wire(Reply)}.
+
+wire(Term) -> macula_record_cbor:decode(macula_record_cbor:encode(Term)).
+
+%%------------------------------------------------------------------------------
+%% Answering
+%%------------------------------------------------------------------------------
+
+handled(_Parsed, _Config, undefined) ->
+    {error, no_responder};
+handled(_Parsed, {error, _} = NotConfigured, _Responder) ->
+    NotConfigured;
+handled({error, malformed}, _Config, _Responder) ->
+    {error, malformed_query};
+handled({ok, #{embedding := Emb, query := Query, top_k := TopK}},
+        {ok, #{embedding := Emb, shard_id := ShardId}}, Responder) ->
+    answered(Responder(Query, #{top_k => TopK}), ShardId, Emb);
+handled({ok, #{embedding := _Other}}, {ok, _Config}, _Responder) ->
+    {error, embedding_mismatch}.
+
+answered({ok, Hits}, ShardId, Emb) when is_list(Hits) ->
+    hits_checked(lists:all(fun macula_rag_contract:valid_hit/1, Hits), ShardId, Emb, Hits);
+answered({error, _} = Refused, _ShardId, _Emb) ->
+    Refused;
+answered(_Other, _ShardId, _Emb) ->
+    {error, malformed_hits}.
+
+hits_checked(true, ShardId, Emb, Hits) -> macula_rag_contract:shard_answered(ShardId, Emb, Hits);
+hits_checked(false, _ShardId, _Emb, _Hits) -> {error, malformed_hits}.
+
+%%------------------------------------------------------------------------------
+%% gen_server: the grant
+%%------------------------------------------------------------------------------
 
 init([]) ->
-    {ok, #state{}}.
+    {ok, #st{}}.
 
-handle_call({register, ShardId, Fun}, _From, #state{callbacks = M} = S) ->
-    {reply, ok, S#state{callbacks = M#{ShardId => Fun}}};
-handle_call({unregister, ShardId}, _From, #state{callbacks = M} = S) ->
-    {reply, ok, S#state{callbacks = maps:remove(ShardId, M)}};
-handle_call(bind, _From, S) ->
-    case advertise_method() of
-        ok           -> {reply, ok, S#state{advertised = true}};
-        {error, _} = E -> {reply, E, S}
-    end;
-handle_call({rpc, QueryMsg}, _From, #state{callbacks = M} = S) ->
-    Reply = answer(QueryMsg, M),
-    {reply, Reply, S};
-handle_call(_, _From, S) ->
-    {reply, {error, unknown_call}, S}.
+handle_call({register, Responder}, _From, St) ->
+    persistent_term:put(?RESPONDER, Responder),
+    reply_granting(macula_rag:configuration(), St);
+handle_call(rebind, _From, #st{grant = not_registered} = St) ->
+    {reply, ok, St};
+handle_call(rebind, _From, St) ->
+    reply_granting(macula_rag:configuration(), St);
+handle_call(unregister, _From, St) ->
+    _ = persistent_term:erase(?RESPONDER),
+    withdrawn(St#st.grant, macula_rag:configuration()),
+    {reply, ok, St#st{grant = not_registered, epoch = St#st.epoch + 1}};
+handle_call(status, _From, St) ->
+    {reply, reported(St#st.grant), St}.
 
-handle_cast(_, S) -> {noreply, S}.
-handle_info(_, S) -> {noreply, S}.
-terminate(_, _)   -> ok.
+handle_cast(_Msg, St) ->
+    {noreply, St}.
 
-%%% Internals
+%% A retry armed under an earlier registration or configuration is stale.
+handle_info({retry_grant, Epoch}, #st{epoch = Epoch, grant = {not_granted, _, _}} = St) ->
+    {noreply, granting(macula_rag:configuration(), St)};
+handle_info({retry_grant, _Stale}, St) ->
+    {noreply, St}.
 
-advertise_method() ->
-    case {macula_rag:pool(), macula_rag:realm()} of
-        {{ok, Pool}, {ok, Realm}} ->
-            try
-                ok = macula:advertise(Pool, Realm, rpc_method(),
-                                      {?MODULE, dispatch}, #{}),
-                ok
-            catch C:R -> {error, {advertise_failed, C, R}}
-            end;
-        _ ->
-            {error, not_configured}
-    end.
+reply_granting({error, _} = NotConfigured, St) ->
+    {reply, NotConfigured, St};
+reply_granting({ok, _} = Config, St) ->
+    {reply, ok, granting(Config, St#st{epoch = St#st.epoch + 1})}.
 
-answer(#{type := query, query := Q, top_k := TopK, query_id := QId}, Callbacks) ->
-    Hits = lists:foldl(
-        fun(Fun, Acc) ->
-            case Fun(Q, #{top_k => TopK}) of
-                {ok, Items} -> Items ++ Acc;
-                _Err        -> Acc
-            end
-        end,
-        [],
-        maps:values(Callbacks)
-    ),
-    macula_rag_protocol:new_response(QId, lists:sublist(rank(Hits), TopK));
-answer(_, _) ->
-    {error, bad_query}.
+granting({ok, #{pool := Pool, realm := Realm, procedure := Proc, io := Io} = Config}, St) ->
+    #{provider_authorization := Authorization, advertise := Advertise} = Io,
+    after_attempt(advertised(Authorization(Pool, Realm, Proc), Advertise, Pool, Realm, Proc), Config, St);
+granting({error, _}, St) ->
+    St.
 
-%% @doc Stable rank by score descending. Hits without `score` go last.
-rank(Hits) ->
-    lists:sort(
-        fun(A, B) ->
-            maps:get(score, A, 0.0) >= maps:get(score, B, 0.0)
-        end,
-        Hits
-    ).
+%% Asked first, so a node without its grant is told why rather than getting
+%% whatever advertise/5 would fail with.
+advertised({ok, _Authorization}, Advertise, Pool, Realm, Proc) ->
+    Advertise(Pool, Realm, Proc, {?MODULE, handle}, #{});
+advertised({error, _} = Refused, _Advertise, _Pool, _Realm, _Proc) ->
+    Refused.
+
+after_attempt(ok, _Config, St) ->
+    St#st{grant = granted};
+after_attempt({error, Reason}, #{grant_retry_ms := RetryMs}, #st{epoch = Epoch} = St) ->
+    erlang:send_after(RetryMs, self(), {retry_grant, Epoch}),
+    St#st{grant = {not_granted, Reason, since(St#st.grant)}}.
+
+%% The window runs from the FIRST refusal of an unbroken run, as mcl_om's does.
+since({not_granted, _Reason, Since}) -> Since;
+since(_GrantedOrNew) -> erlang:monotonic_time(millisecond).
+
+withdrawn(granted, {ok, #{pool := Pool, realm := Realm, procedure := Proc, io := #{unadvertise := Unadvertise}}}) ->
+    _ = Unadvertise(Pool, Realm, Proc),
+    ok;
+withdrawn(_NotAdvertised, _Config) ->
+    ok.
+
+reported({not_granted, Reason, Since}) ->
+    {not_granted, #{reason => Reason, since_ms => erlang:monotonic_time(millisecond) - Since}};
+reported(Grant) ->
+    Grant.

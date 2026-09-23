@@ -8,3 +8,4 @@ rebar3.crashdump
 .idea/
 *.swp
 .DS_Store
+doc/

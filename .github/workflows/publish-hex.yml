@@ -1,0 +1,145 @@
+name: Publish to hex
+
+# Publishes exactly a pushed release tag to hex.pm. Ported from
+# reckon-db-org/evoq's workflow of the same name, which follows macula's.
+#
+# THE TAG IS THE RELEASE. Pushing vX.Y.Z publishes it; there is no reviewer
+# step in this file, by the house rule. What guards a release is automated and
+# runs before anything is published:
+#
+#   - the checkout is the clean, pushed tag, the version in
+#     src/macula_rag.app.src is that tag's, and CHANGELOG.md has its section
+#     (scripts/is_checkout_publishable.sh);
+#   - the package and its docs build;
+#   - the publish command runs as a dry run, so a plugin that cannot read
+#     HEX_API_KEY fails here, not after the tag;
+#   - after publishing, hex is checked to serve the tagged files
+#     (scripts/is_hex_serving_what_git_says.sh).
+#
+# Tests gate the release commit on main (lint-and-test.yml); a tag names a
+# commit that already passed them.
+#
+# HEX_API_KEY is a secret of the `hex-publish' environment. The environment
+# exists to hold that secret; a publish without it fails at the publish step.
+#
+# A manual dispatch is a dry run for a given tag and never publishes.
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to dry-run, vX.Y.Z. Never publishes.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  OTP_VERSION: '28.4.3'
+  REBAR3_VERSION: '3.27.0'
+  RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+
+concurrency:
+  group: publish-hex-${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Guard and build the package
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # The guard comes from this workflow's own commit, so a dry run can check
+      # a tag cut before the guard existed. On a tag push this is the tag.
+      - name: Check out the workflow's own commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: ci
+
+      - name: Check out the release tag
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+          path: pkg
+
+      - name: Set up Erlang/OTP and rebar3
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          rebar3-version: ${{ env.REBAR3_VERSION }}
+          version-type: strict
+
+      - name: Refuse unless the Erlang is the pinned one
+        run: bash ci/scripts/is_erlang_the_pinned_version.sh "$GITHUB_WORKSPACE/pkg"
+
+      - name: Refuse unless this is the clean, pushed release tag
+        run: bash ci/scripts/is_checkout_publishable.sh "$GITHUB_WORKSPACE/pkg"
+
+      - name: Build the package and docs
+        working-directory: pkg
+        run: rebar3 hex build
+
+      # The publish command with a placeholder key and a dead API URL: fails
+      # here if the command does not read HEX_API_KEY, and cannot reach hex.pm.
+      - name: Dry-run the publish command
+        working-directory: pkg
+        env:
+          HEX_API_KEY: placeholder-not-a-real-key
+          HEX_API_URL: http://127.0.0.1:9
+        run: rebar3 hex publish --repo hexpm --yes --dry-run
+
+  publish:
+    name: Publish to hex.pm
+    needs: verify
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: hex-publish
+    steps:
+      - name: Refuse unless this run is a pushed release tag
+        run: |
+          case "$GITHUB_EVENT_NAME:$GITHUB_REF" in
+            push:refs/tags/v*) ;;
+            *) echo "::error::publish runs only for a pushed release tag, not $GITHUB_EVENT_NAME $GITHUB_REF"
+               exit 1 ;;
+          esac
+
+      - name: Check out the release tag
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+
+      - name: Set up Erlang/OTP and rebar3
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          rebar3-version: ${{ env.REBAR3_VERSION }}
+          version-type: strict
+
+      - name: Refuse unless this is the clean, pushed release tag
+        run: bash scripts/is_checkout_publishable.sh
+
+      # rebar3_hex reads HEX_API_KEY only for a named repository.
+      - name: Publish the package and docs
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+        run: rebar3 hex publish --repo hexpm --yes
+
+      - name: Check that hex serves the tagged code
+        run: |
+          VSN="${RELEASE_TAG#v}"
+          for attempt in 1 2 3 4 5; do
+            if bash scripts/is_hex_serving_what_git_says.sh "$VSN" "$RELEASE_TAG"; then
+              exit 0
+            fi
+            echo "Attempt $attempt: not confirmed yet, retrying in 30 seconds"
+            sleep 30
+          done
+          echo "::error::hex.pm does not serve the code tagged $RELEASE_TAG"
+          exit 1

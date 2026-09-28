@@ -5,7 +5,7 @@ queries for an org.
 
 ## What you need
 
-- A macula 12.1 pool, connected to the realm, with the realm's key pinned
+- A macula 13.0.1 pool, connected to the realm, with the realm's key pinned
   (`realm_trust` at `macula:connect/2`). macula uses the pinned key to check
   every shard's delegation.
 - The org's **D25 delegation** for this node, if the node is to be a shard.

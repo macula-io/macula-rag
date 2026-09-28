@@ -3,6 +3,17 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-09-29
+
+### Changed
+
+- **On macula 13** (`~> 13.0.1`, was `~> 12.1`). A service on macula 13 could
+  not use macula_rag 0.1, which pinned macula 12. No code change was needed:
+  the facade calls it makes (`advertise`, `unadvertise`, `call`, `providers`,
+  `publish`, `subscribe`, `unsubscribe`, `status`, `provider_authorization`)
+  compile, pass xref and dialyzer, and the whole suite passes on 13.0.1.
+- A test holds the floor: macula 13.0.1 or later.
+
 ## [0.1.0] - 2026-09-23
 
 The first release. Everything before it was an unreleased scaffold on macula

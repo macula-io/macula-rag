@@ -30,8 +30,9 @@ every shard of the org at once and merges their hits by score.
 - **One shard per node.** The node id is the shard's identity; `shard_id` is a
   label for people.
 
-It needs **macula 12.1** or later, for `macula:providers/3,4` and the
-`provider` option of `macula:call/6`.
+It needs **macula 13.0.1** or later (`~> 13.0.1`): `macula:providers/3,4` and
+the `provider` option of `macula:call/6` arrived in 12.1, and a service on
+macula 13 cannot use a macula_rag pinned to 12.
 
 ## Status
 

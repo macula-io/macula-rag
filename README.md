@@ -130,7 +130,7 @@ the corpus hash naming which corpus answered, and the operator's optional
 signature over it. [The RAG service contract](guides/rag_service_contract.md)
 is the canonical text, with frozen vectors in `test/vectors/`.
 
-    macula_rag:corpus_hash(Description)                 %% recompute a provider's hash
+    macula_rag:corpus_hash(Description)                 %% the hash of a description you built
     macula_rag:verify_corpus(Description, P, Profile)   %% {ok, {signed, P}} | {ok, unsigned} | {error, Why}
     macula_rag:verify_hit(Hit)                          %% the text is what its provenance hashes
 

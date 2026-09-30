@@ -76,6 +76,13 @@ a_signature_that_does_not_verify_is_refused_test() ->
                  macula_rag_corpus:verify((described(Hybrid))#{signature => <<"not cbor">>},
                                           signer(Hybrid), pq_hybrid)).
 
+%% Anything but a description is refused, never raised on.
+not_a_description_is_refused_test() ->
+    ?assertEqual({error, malformed_description}, macula_rag_corpus:verify(<<"x">>, <<0:256>>, pq_pure)),
+    ?assertEqual({error, malformed_description},
+                 macula_rag_corpus:verify(#{model => <<"m">>, dim => 384, repos => [1],
+                                            corpus_hash => <<"h">>}, <<0:256>>, pq_pure)).
+
 %% No signature: an unsigned corpus, whose hash still has to hold.
 an_unsigned_corpus_test() ->
     [V | _] = signed_vectors(),

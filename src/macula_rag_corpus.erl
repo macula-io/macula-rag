@@ -41,7 +41,8 @@
 -spec signature_label() -> binary().
 signature_label() -> ?LABEL.
 
-%% @doc The corpus hash of a description (built or as received).
+%% @doc The corpus hash of a well-formed description, as a provider builds it.
+%% A received one goes through verify/3, which checks its shape first.
 -spec corpus_hash(map()) -> binary().
 corpus_hash(Description) ->
     #{<<"model">> := Model, <<"dim">> := Dim, <<"repos">> := Repos} =
@@ -61,7 +62,9 @@ sign(CorpusHash, Key) when is_binary(CorpusHash) ->
 %% caller's profile. `{ok, unsigned}' when it carries no signature.
 -spec verify(map(), <<_:256>>, macula_crypto_profile:profile()) -> verdict().
 verify(Description, Provider, Profile) when is_map(Description) ->
-    described(well_formed(macula_rag_contract:plain(Description)), Provider, Profile).
+    described(well_formed(macula_rag_contract:plain(Description)), Provider, Profile);
+verify(_NotAMap, _Provider, _Profile) ->
+    {error, malformed_description}.
 
 described({ok, #{<<"corpus_hash">> := Claimed} = D}, Provider, Profile) ->
     hashed(corpus_hash(D) =:= Claimed, D, Provider, Profile);

@@ -23,6 +23,9 @@ each:
 
 A **hit** is at least `chunk_id`, `score`, `content` and `provenance`. A provider may add more.
 
+On the wire every string above is a CBOR text string; `signature` and `raw_bytes` are CBOR byte
+strings; `dim`, `score`, `top_k` and the lines are numbers.
+
 A `query_vector` must be in the provider's embedding, as `describe_corpus` names it. One of
 another length is refused (`dimension_mismatch`). The role prefix belongs to the model (e5:
 `query: ` before the text).
@@ -41,8 +44,9 @@ another length is refused (`dimension_mismatch`). The role prefix belongs to the
 A corpus file unchanged across a pin move keeps the commit it was ingested at, since its bytes
 are the same at the new pin.
 
-`macula_rag:verify_hit/1` checks a hit's text against its `content_sha256`. It says nothing
-about whether the repo and commit are true; that is what the corpus hash and signature are for.
+`macula_rag:verify_hit/1` checks a hit's text against its `content_sha256`, which matters for
+a hit relayed or stored after the call. It does not check that `repo_id` is one of the described
+repos or that `path` lies inside it: `ok` is not corpus membership.
 
 ## The corpus hash
 
@@ -79,7 +83,15 @@ node P** only when all of these hold:
 `macula_rag:verify_corpus(Description, P, Profile)` is exactly this check (2 to 5). It returns
 `{ok, {signed, P}}`, `{ok, unsigned}` or the reason it refused: `malformed_description`,
 `corpus_hash_mismatch`, `{signature, Reason}`, `signer_not_provider` or
-`signature_hash_mismatch`. A signature says P vouched for that corpus; it does not say when.
+`signature_hash_mismatch`. A caller that requires a signature matches `{ok, {signed, P}}`:
+`{ok, unsigned}` is a well-formed, **unsigned** corpus.
+
+Only `model`, `dim` and each repo's `id`, `url`, `branch` and `commit` are covered. Any other key
+in the description or in a repo, `signed_by` included, is not vouched for and is never shown as
+if it were. A signature says P vouched for that corpus; it does not say when.
+
+Step 1 rests on macula binding a `call/6` reply to the provider it was addressed to. Another SDK
+must give the same guarantee before a caller trusts `{signed, P}` from it.
 
 ## Vectors
 

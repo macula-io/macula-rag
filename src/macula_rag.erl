@@ -30,6 +30,7 @@
 -export([register_responder/1, unregister_responder/0]).
 -export([advertise/2, withdraw/0, shards/0]).
 -export([query/1, query/2, status/0]).
+-export([corpus_hash/1, sign_corpus/2, verify_corpus/3, verify_hit/1]).
 
 -type hit() :: #{binary() => term()}.
 -type query_report() :: macula_rag_query:report().
@@ -227,3 +228,25 @@ status() ->
       advertised => macula_rag_directory:advertised(),
       shards => length(macula_rag_directory:shards()),
       configured => element(1, configuration()) =:= ok}.
+
+%%------------------------------------------------------------------------------
+%% The RAG service contract: which corpus answered, and who vouches for it
+%% (macula_rag_corpus, guides/rag_service_contract.md)
+%%------------------------------------------------------------------------------
+
+%% @doc The corpus hash of a provider's description.
+-spec corpus_hash(map()) -> binary().
+corpus_hash(Description) -> macula_rag_corpus:corpus_hash(Description).
+
+%% @doc A provider's signature over its corpus hash, with its identity key.
+-spec sign_corpus(binary(), macula_node_keys:node_key()) -> binary().
+sign_corpus(CorpusHash, Key) -> macula_rag_corpus:sign(CorpusHash, Key).
+
+%% @doc Check a description from the provider the caller pinned (macula:call/6
+%% with provider), under the caller's profile.
+-spec verify_corpus(map(), <<_:256>>, macula_crypto_profile:profile()) -> macula_rag_corpus:verdict().
+verify_corpus(Description, Provider, Profile) -> macula_rag_corpus:verify(Description, Provider, Profile).
+
+%% @doc `ok' when a hit's text is the text its provenance hashes.
+-spec verify_hit(map()) -> ok | {error, malformed_provenance | content_mismatch}.
+verify_hit(Hit) -> macula_rag_corpus:verify_hit(Hit).

@@ -30,7 +30,7 @@
 
 -export([procedure/1, topic/3, check_realm_name/2]).
 -export([shard_summarized/5, shard_withdrawn/2, query_shard/3, shard_answered/3]).
--export([parse/2, valid_hit/1]).
+-export([parse/2, valid_hit/1, plain/1]).
 
 -type embedding() :: #{model := binary(), dim := pos_integer()}.
 -type fact() :: shard_summarized | shard_withdrawn.
@@ -145,6 +145,7 @@ checked(false, _Parsed) -> {error, malformed}.
 
 %% `{text, B}' back to `B', and atoms to binaries, at any depth, so a received
 %% payload reads like a built one with binary keys.
+-spec plain(term()) -> term().
 plain({text, B}) when is_binary(B) -> B;
 plain(M) when is_map(M) -> maps:from_list([{plain(K), plain(V)} || {K, V} <- maps:to_list(M)]);
 plain(L) when is_list(L) -> [plain(E) || E <- L];

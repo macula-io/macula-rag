@@ -3,6 +3,20 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-10-01
+
+### Added
+
+- **The RAG service contract** (`guides/rag_service_contract.md`, canonical,
+  with frozen vectors in `test/vectors/`): the five procedures a provider
+  serves, provenance on every hit, the corpus hash and the operator's
+  optional signature.
+- `macula_rag_corpus`, through the facade: `corpus_hash/1`, `sign_corpus/2`,
+  `verify_corpus/3` (signed only by the pinned provider, from the verified
+  key, over the recomputed hash) and `verify_hit/1`.
+- `macula_rag_contract:plain/1` is exported: a received payload with text
+  unwrapped and atom keys as binaries.
+
 ## [0.2.0] - 2026-09-29
 
 ### Changed

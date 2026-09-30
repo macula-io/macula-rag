@@ -123,6 +123,21 @@ A summary belongs to the node macula verified as its publisher, whatever the
 payload claims. `test/macula_rag_contract_tests.erl` pins every key and reads
 each payload back through macula's codec.
 
+## The RAG service contract
+
+What any provider serves and any caller can check: provenance on every hit,
+the corpus hash naming which corpus answered, and the operator's optional
+signature over it. [The RAG service contract](guides/rag_service_contract.md)
+is the canonical text, with frozen vectors in `test/vectors/`.
+
+    macula_rag:corpus_hash(Description)                 %% recompute a provider's hash
+    macula_rag:verify_corpus(Description, P, Profile)   %% {ok, {signed, P}} | {ok, unsigned} | {error, Why}
+    macula_rag:verify_hit(Hit)                          %% the text is what its provenance hashes
+
+`verify_corpus/3` counts a signature only from the provider the caller pinned
+(`macula:call/6` with `#{provider => P}`), derived from the verified key,
+never from `signed_by`.
+
 ## Build and test
 
     scripts/check.sh      # compile, eunit, lint, xref, dialyzer, as CI runs them
@@ -144,6 +159,7 @@ it checks that hex serves the tagged files.
 
 - [Getting started](guides/getting_started.md)
 - [Federation design](guides/federation_design.md)
+- [The RAG service contract](guides/rag_service_contract.md)
 
 ## License
 

@@ -1,6 +1,6 @@
 {application, macula_rag, [
     {description, "Federated retrieval over the Macula mesh: ask every shard of an org, merge the answers"},
-    {vsn, "0.2.0"},
+    {vsn, "0.3.0"},
     {registered, [macula_rag_sup, macula_rag_responder, macula_rag_directory]},
     {mod, {macula_rag_app, []}},
     {applications, [

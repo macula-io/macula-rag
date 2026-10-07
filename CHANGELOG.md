@@ -3,6 +3,15 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-10-07
+
+### Changed
+
+- **On macula 14** (`~> 14.2`, was `~> 13.0.1`). A service on macula 14 could
+  not use macula_rag 0.3, which pinned macula 13. No code change was needed:
+  no macula function macula_rag calls changed between 13.0.1 and 14.2.0
+  (macula 14 drops `node_identity_path`, which this library never reads).
+
 ## [0.3.0] - 2026-10-01
 
 ### Added

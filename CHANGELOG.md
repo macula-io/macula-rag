@@ -3,6 +3,16 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-10-08
+
+### Added
+
+- **A `confidential` option for the shard procedure** (`off | preferred | required`, macula's provider modes),
+  passed to macula's advertise. `required` refuses a peer query to `<org>/rag.query_shard_v1` in the clear, so
+  shards only exchange sealed queries. `configure/3` refuses a value that is not a mode, and `required` while
+  macula's `kem_advertise` is not enabled, with macula's own reasons, rather than retrying a grant forever.
+  Absent, nothing changes (macula's default, `preferred`). (macula-services/mcl-rag#16)
+
 ## [0.4.0] - 2026-10-07
 
 ### Changed

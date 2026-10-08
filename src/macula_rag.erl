@@ -42,6 +42,7 @@
                      query_timeout_ms => pos_integer(),
                      grant_retry_ms => pos_integer(),
                      summary_republish_ms => pos_integer(),
+                     confidential => off | preferred | required,
                      io => map()}.
 
 -export_type([hit/0, query_report/0, responder/0, options/0]).
@@ -62,14 +63,20 @@
 %%   realm_name   the realm's name, e.g. io.macula; its SHA-256 must be `Realm'
 %%   embedding    `#{model => Binary, dim => PosInteger}' this node's index uses
 %%
-%% and, optionally, `query_timeout_ms' (1500), `grant_retry_ms' (30000), and
-%% `summary_republish_ms' (60000). `io' replaces the macula calls, for tests.
+%% and, optionally, `query_timeout_ms' (1500), `grant_retry_ms' (30000),
+%% `summary_republish_ms' (60000) and `confidential', how the shard procedure's
+%% calls are protected (macula's provider modes): `off' names no KEM key,
+%% `preferred' names one when macula's `kem_advertise' is enabled, `required'
+%% also refuses a peer query in the clear and needs `kem_advertise' enabled.
+%% Absent, macula's default (`preferred'). A value macula would refuse at
+%% advertise time is refused here, by the same check. `io' replaces the macula
+%% calls, for tests.
 %%
 %% Configuring again rebinds: the summary subscription moves to the new pool,
 %% and a registered responder asks for its grant again.
 -spec configure(pid(), <<_:256>>, options()) -> ok | {error, term()}.
 configure(Pool, Realm, Opts) when is_pid(Pool), is_binary(Realm), byte_size(Realm) =:= 32, is_map(Opts) ->
-    checked(options_checked(Opts), Pool, Realm, Opts).
+    checked(confidentiality_checked(Opts, options_checked(Opts)), Pool, Realm, Opts).
 
 checked(ok, Pool, Realm, #{realm_name := Name} = Opts) ->
     realm_checked(macula_rag_contract:check_realm_name(Name, Realm), Pool, Realm, Opts);
@@ -92,6 +99,21 @@ options_checked(#{org := Org, shard_id := ShardId, realm_name := Name,
     org_checked(catch macula_rag_contract:procedure(Org));
 options_checked(Opts) ->
     {error, {invalid_options, Opts}}.
+
+%% The mode and macula's kem_advertise switch, judged as macula's advertise
+%% judges them and with its reasons, so a refusal comes back from configure/3
+%% and not as a grant retried forever.
+confidentiality_checked(#{confidential := Mode}, ok) ->
+    mode_checked(Mode, application:get_env(macula, kem_advertise, disabled));
+confidentiality_checked(_Opts, Verdict) ->
+    Verdict.
+
+mode_checked(Mode, _Switch) when Mode =/= off, Mode =/= preferred, Mode =/= required ->
+    {error, {confidentiality, {not_a_mode, Mode}}};
+mode_checked(required, Switch) when Switch =/= enabled ->
+    {error, {confidentiality, kem_advertise_disabled}};
+mode_checked(_Mode, _Switch) ->
+    ok.
 
 org_checked(Procedure) when is_binary(Procedure) -> ok;
 org_checked({'EXIT', {{invalid_org, Org}, _}}) -> {error, {invalid_org, Org}}.

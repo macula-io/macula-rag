@@ -107,6 +107,7 @@ on it.
 | `query_timeout_ms` | 1500 | how long a query waits for the slowest shard |
 | `grant_retry_ms` | 30000 | how often a refused grant is asked for again |
 | `summary_republish_ms` | 60000 | how often this shard's summary is republished; a summary unheard for three periods is stale |
+| `confidential` | macula's (`preferred`) | how `rag.query_shard_v1` calls are protected: `off` names no KEM key; `preferred` names one when macula's `kem_advertise` is enabled, so peers seal; `required` also refuses a peer query in the clear and needs `kem_advertise` enabled. `configure/3` refuses any other value, and `required` without the switch |
 
 ## The wire contract
 

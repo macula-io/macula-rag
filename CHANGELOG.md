@@ -3,6 +3,21 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] - 2026-10-17
+
+### Changed
+
+- **On macula 15** (`~> 15.6`, was `~> 14.2`): the stable wire, the SDK base the
+  flag day (macula-fleet#27) moves every deployed service to. No code change was
+  needed. Every macula function and type this library names is still exported and
+  still behaves as it did, and the suite is green on 15.6.0 unchanged: the floor
+  test is the only test that moved, and it went red against 14.11.0 first.
+- **1.0.0, not 0.6.0, because a two-part tilde floats.** A consumer's `~> 0.5`
+  accepts any 0.x, so a 0.6.0 would be taken by a service still on macula 14,
+  which this release cannot serve: a 15 node and a 14 node do not interoperate.
+  1.0.0 is outside `~> 0.5`, so nothing floats onto it. Consumers on macula 15
+  pin `~> 1.0`.
+
 ## [0.5.0] - 2026-10-08
 
 ### Added

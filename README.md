@@ -30,12 +30,13 @@ every shard of the org at once and merges their hits by score.
 - **One shard per node.** The node id is the shard's identity; `shard_id` is a
   label for people.
 
-It needs **macula 14.2** or later (`~> 14.2`), the SDK base every deployed
-service runs on: a service on macula 14 cannot use a macula_rag pinned to 13.
+It needs **macula 15.6** or later (`~> 15.6`), the stable wire: a service on
+macula 15 cannot use a macula_rag pinned to macula 14, and a service still on
+macula 14 cannot use this release.
 
 ## Status
 
-**0.1.0, the first release.** No node issues federated queries in production
+**1.0.0, on the stable wire.** No node issues federated queries in production
 yet. What this version does not do:
 
 - The summary carries a **bloom** filter, and `shards/0` lists it, but a query
@@ -47,7 +48,7 @@ yet. What this version does not do:
 ## Using it
 
 ```erlang
-{deps, [{macula_rag, "~> 0.4"}]}.
+{deps, [{macula_rag, "~> 1.0"}]}.
 ```
 
 Once a macula pool is connected:

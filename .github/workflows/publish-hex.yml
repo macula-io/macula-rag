@@ -18,8 +18,9 @@ name: Publish to hex
 #   - after publishing, hex is checked to serve the tagged files
 #     (scripts/is_hex_serving_what_git_says.sh).
 #
-# Tests gate the release commit on main (lint-and-test.yml); a tag names a
-# commit that already passed them.
+# Tests gate the publish: `test' runs lint-and-test.yml on the tagged commit
+# and `publish' waits on it, so a red suite leaves the tag with no package
+# (mcl-om#34). Before that the two ran side by side on a tag.
 #
 # HEX_API_KEY is a secret of the `hex-publish' environment. The environment
 # exists to hold that secret; a publish without it fails at the publish step.
@@ -95,9 +96,17 @@ jobs:
           HEX_API_URL: http://127.0.0.1:9
         run: rebar3 hex publish --repo hexpm --yes --dry-run
 
+  # The whole of lint-and-test.yml, on the tagged commit (a called workflow checks
+  # out the caller's github.sha, which on a tag push is the tag). A dispatch
+  # is a dry run of `verify' and skips it: it would test the branch, not the tag.
+  test:
+    name: Test the release commit
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/lint-and-test.yml
+
   publish:
     name: Publish to hex.pm
-    needs: verify
+    needs: [verify, test]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 30

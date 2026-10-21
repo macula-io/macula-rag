@@ -88,7 +88,7 @@ then, `status/0` says why not:
 ```erlang
 #{responder := {not_granted, #{reason := {provider_authorization,
                                           {procedure_delegation, not_found}},
-                               since_ms := 42000}}}
+                               since_ms := SinceMs}}} = macula_rag:status().
 ```
 
 `{procedure_delegation, not_found}` means an operator has to delegate this node

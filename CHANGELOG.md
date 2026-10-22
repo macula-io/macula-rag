@@ -3,11 +3,11 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.0] - 2026-10-22
+
+### Added
 
 - CI checks every Erlang block in the README and guides (`docs.yml`, macula-codebase-checks#8), on every change including doc-only ones, and `publish-hex.yml` waits on it. The grant example matches `macula_rag:status/0` instead of showing a term with `:=` in a map construction.
-
-## [1.1.0] - 2026-10-22
 
 ### Changed
 

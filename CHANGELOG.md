@@ -7,6 +7,17 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 - CI checks every Erlang block in the README and guides (`docs.yml`, macula-codebase-checks#8), on every change including doc-only ones, and `publish-hex.yml` waits on it. The grant example matches `macula_rag:status/0` instead of showing a term with `:=` in a map construction.
 
+## [1.1.0] - 2026-10-22
+
+### Changed
+
+- **On macula 16** (`~> 16.0`, was `~> 15.6`). 16.0 keeps wire 1.0, the wire
+  every deployed box speaks; what it adds is the revocation bound (macula#118).
+  No code change was needed. A minor, not a major, because this library keeps
+  to the rule it set for itself at 1.0.0: a consumer's `~> 1.0` already asks
+  for macula 15 or newer, and the only consumer, mcl-rag, moves to 16 in the
+  same batch.
+
 ## [1.0.0] - 2026-10-17
 
 ### Changed

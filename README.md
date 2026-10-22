@@ -30,13 +30,13 @@ every shard of the org at once and merges their hits by score.
 - **One shard per node.** The node id is the shard's identity; `shard_id` is a
   label for people.
 
-It needs **macula 15.6** or later (`~> 15.6`), the stable wire: a service on
-macula 15 cannot use a macula_rag pinned to macula 14, and a service still on
-macula 14 cannot use this release.
+It needs **macula 16** or later (`~> 16.0`). 16 keeps wire 1.0, the wire every
+deployed service speaks, and adds the revocation bound (macula#118). A service
+on macula 16 cannot use a macula_rag pinned to macula 15.
 
 ## Status
 
-**1.0.0, on the stable wire.** No node issues federated queries in production
+**1.1.0, on the stable wire.** No node issues federated queries in production
 yet. What this version does not do:
 
 - The summary carries a **bloom** filter, and `shards/0` lists it, but a query

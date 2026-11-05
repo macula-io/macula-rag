@@ -134,14 +134,14 @@ reply_granting({ok, _} = Config, St) ->
 granting({ok, #{pool := Pool, realm := Realm, procedure := Proc, io := Io} = Config}, St) ->
     #{provider_authorization := Authorization, advertise := Advertise} = Io,
     after_attempt(advertised(Authorization(Pool, Realm, Proc), Advertise, Pool, Realm, Proc,
-                             maps:with([confidential], Config)),
+                             maps:with([auth, confidential], Config)),
                   Config, St);
 granting({error, _}, St) ->
     St.
 
 %% Asked first, so a node without its grant is told why rather than getting
 %% whatever advertise/5 would fail with.
-%% The configured `confidential', or nothing (macula's default).
+%% The configured `auth', and `confidential' or nothing (macula's default).
 advertised({ok, _Authorization}, Advertise, Pool, Realm, Proc, Opts) ->
     Advertise(Pool, Realm, Proc, {?MODULE, handle}, Opts);
 advertised({error, _} = Refused, _Advertise, _Pool, _Realm, _Proc, _Opts) ->

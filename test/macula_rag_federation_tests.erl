@@ -58,7 +58,7 @@ setup() ->
     unlink(Sup),
     Bus = ets:new(federation_bus, [public, bag]),
     ok = macula_rag:configure(self(), crypto:hash(sha256, ?REALM_NAME),
-                              #{org => <<"acme">>, shard_id => <<"querier">>, realm_name => ?REALM_NAME,
+                              #{org => <<"acme">>, shard_id => <<"querier">>, realm_name => ?REALM_NAME, auth => open,
                                 embedding => ?EMB, query_timeout_ms => 5000,
                                 io => io(Peers, Calls, Bus)}),
     [deliver_summaries(NodeId, Peer, Bus) || {NodeId, Peer} <- maps:to_list(Peers)],
@@ -101,7 +101,7 @@ io(Peers, Calls, Bus) ->
                       remote_answer(peer:call(maps:get(Node, Peers), macula_rag_responder, handle,
                                               [wire(Payload)]))
               end,
-      subscribe => fun(_Pool, _Realm, Topic, _Pid) ->
+      subscribe => fun(_Pool, _Realm, Topic, _Pid, #{sources := {org, _}}) ->
                            Ref = make_ref(),
                            true = ets:insert(Bus, {subscribed, Topic, Ref}),
                            {ok, Ref}

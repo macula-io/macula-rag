@@ -109,7 +109,7 @@ setup() ->
     #{state => State, sup => Sup}.
 
 opts(State) ->
-    #{org => <<"acme">>, shard_id => <<"me">>, realm_name => ?REALM_NAME, embedding => ?EMB,
+    #{org => <<"acme">>, shard_id => <<"me">>, realm_name => ?REALM_NAME, auth => open, embedding => ?EMB,
       summary_republish_ms => 100, io => io(State)}.
 
 cleanup(#{state := State, sup := Sup}) ->
@@ -124,7 +124,7 @@ stopped(Sup) ->
     receive {'DOWN', Mon, process, Sup, _} -> ok after 2000 -> ok end.
 
 io(State) ->
-    #{subscribe => fun(Pool, _Realm, Topic, _Pid) ->
+    #{subscribe => fun(Pool, _Realm, Topic, _Pid, #{sources := {org, <<"acme">>}}) ->
                            Ref = make_ref(),
                            true = ets:insert(State, {subscribed, Pool, Topic, Ref}),
                            {ok, Ref}

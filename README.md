@@ -30,13 +30,16 @@ every shard of the org at once and merges their hits by score.
 - **One shard per node.** The node id is the shard's identity; `shard_id` is a
   label for people.
 
-It needs **macula 16** or later (`~> 16.0`). 16 keeps wire 1.0, the wire every
-deployed service speaks, and adds the revocation bound (macula#118). A service
-on macula 16 cannot use a macula_rag pinned to macula 15.
+It needs **macula 18** (`~> 18.0`). 18 keeps wire 1.0, the wire every deployed
+service speaks. It removed the four-argument subscribe and has no default for who may publish
+to a subscription or call a procedure (macula#147), so this library names both:
+the shard summaries are heard only from nodes the org delegated
+(`sources => {org, Org}`), and the service says who may call its shard procedure
+with `auth` at `configure/3`.
 
 ## Status
 
-**1.1.0, on the stable wire.** No node issues federated queries in production
+**2.0.0, on the stable wire (macula 18).** No node issues federated queries in production
 yet. What this version does not do:
 
 - The summary carries a **bloom** filter, and `shards/0` lists it, but a query
@@ -48,7 +51,7 @@ yet. What this version does not do:
 ## Using it
 
 ```erlang
-{deps, [{macula_rag, "~> 1.0"}]}.
+{deps, [{macula_rag, "~> 2.0"}]}.
 ```
 
 Once a macula pool is connected:
@@ -58,7 +61,8 @@ ok = macula_rag:configure(Pool, RealmId,
        #{org => <<"acme">>,
          shard_id => <<"library-shard-1">>,
          realm_name => <<"io.macula">>,
-         embedding => #{model => <<"nomic-embed-text">>, dim => 768}}),
+         embedding => #{model => <<"nomic-embed-text">>, dim => 768},
+         auth => {callers, members}}),
 
 %% This node is a shard: answer the org's queries.
 ok = macula_rag:register_responder(

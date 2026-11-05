@@ -26,7 +26,7 @@
 %%% Start by `configure/3' once the pool is connected.
 -module(macula_rag).
 
--export([configure/3, forget_configuration/0, configuration/0]).
+-export([configure/3, forget_configuration/0, configuration/0, default_io/0]).
 -export([register_responder/1, unregister_responder/0]).
 -export([advertise/2, withdraw/0, shards/0]).
 -export([query/1, query/2, status/0]).
@@ -39,6 +39,7 @@
                      shard_id := binary(),
                      realm_name := binary(),
                      embedding := macula_rag_contract:embedding(),
+                     auth := term(),
                      query_timeout_ms => pos_integer(),
                      grant_retry_ms => pos_integer(),
                      summary_republish_ms => pos_integer(),
@@ -62,6 +63,10 @@
 %%   shard_id     a label for this node's shard; the node id is its identity
 %%   realm_name   the realm's name, e.g. io.macula; its SHA-256 must be `Realm'
 %%   embedding    `#{model => Binary, dim => PosInteger}' this node's index uses
+%%   auth         who may call the shard procedure, as macula's `advertise/5'
+%%                takes it (`open', `{callers, members}', ...). There is no
+%%                default, as macula has none (macula#147): an advertisement
+%%                that names no `auth' would be refused.
 %%
 %% and, optionally, `query_timeout_ms' (1500), `grant_retry_ms' (30000),
 %% `summary_republish_ms' (60000) and `confidential', how the shard procedure's
@@ -94,11 +99,16 @@ realm_checked({error, _} = Refused, _Pool, _Realm, _Opts) ->
     Refused.
 
 options_checked(#{org := Org, shard_id := ShardId, realm_name := Name,
-                  embedding := #{model := Model, dim := Dim}})
+                  embedding := #{model := Model, dim := Dim}} = Opts)
   when is_binary(ShardId), is_binary(Name), is_binary(Model), is_integer(Dim), Dim > 0 ->
-    org_checked(catch macula_rag_contract:procedure(Org));
+    auth_named(maps:is_key(auth, Opts), catch macula_rag_contract:procedure(Org));
 options_checked(Opts) ->
     {error, {invalid_options, Opts}}.
+
+%% macula refuses an advertisement that names no `auth' (macula#147); refused
+%% here, so configure/3 says so rather than a grant retried forever.
+auth_named(true, Procedure) -> org_checked(Procedure);
+auth_named(false, _Procedure) -> {error, {auth, required}}.
 
 %% The mode and macula's kem_advertise switch, judged as macula's advertise
 %% judges them and with its reasons, so a refusal comes back from configure/3
@@ -133,11 +143,15 @@ configuration() ->
 found(undefined) -> {error, not_configured};
 found(Config) -> {ok, Config}.
 
+%% @doc The macula calls this library makes, as funs. `configure/3''s `io'
+%% replaces any of them, for tests; the floor test checks that every one is
+%% exported by the macula in use.
+-spec default_io() -> #{atom() => fun()}.
 default_io() ->
     #{providers => fun macula:providers/4,
       call => fun macula:call/6,
       publish => fun macula:publish/4,
-      subscribe => fun macula:subscribe/4,
+      subscribe => fun macula:subscribe/5,
       unsubscribe => fun macula:unsubscribe/2,
       advertise => fun macula:advertise/5,
       unadvertise => fun macula:unadvertise/3,

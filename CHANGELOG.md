@@ -3,6 +3,33 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] - 2026-11-05
+
+### Changed
+
+- **On macula 18** (`~> 18.0`, was `~> 16.0`), macula-rag#3. 18 keeps wire 1.0
+  and removed the four-argument `macula:subscribe` (macula#147). 1.1.0 still
+  bound it, so a
+  service whose own deps resolved macula 18 (rebar3 lets the top-level
+  constraint win over this library's) crashed with `undef` the first time the
+  directory subscribed, and the application stopped: mcl-rag restarted every
+  few seconds on its canary box and served nothing.
+- **The directory hears shard summaries only from the org's delegated nodes.**
+  It subscribes through `subscribe/5` with `sources => {org, Org}`; macula
+  checks every publisher against the org's delegation before delivering.
+- **Breaking: `configure/3` requires `auth`**, who may call the shard
+  procedure, in the form macula's `advertise/5` takes. macula 18 has no
+  default and refuses an advertisement without one; `configure/3` now returns
+  `{error, {auth, required}}` instead of a grant retried forever. A major,
+  because a consumer's `~> 1.0` must not be handed a library its configure call
+  no longer satisfies.
+
+### Added
+
+- `default_io/0`, the macula calls this library makes, and a floor test that
+  fails when the macula in use does not export one of them. It fails on 1.1.0's
+  four-argument subscribe against macula 18.
+
 ## [1.1.0] - 2026-10-22
 
 ### Added

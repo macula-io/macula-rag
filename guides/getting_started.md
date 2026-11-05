@@ -5,7 +5,7 @@ queries for an org.
 
 ## What you need
 
-- A macula 16 pool, connected to the realm, with the realm's key pinned
+- A macula 18 pool, connected to the realm, with the realm's key pinned
   (`realm_trust` at `macula:connect/2`). macula uses the pinned key to check
   every shard's delegation.
 - The org's **D25 delegation** for this node, if the node is to be a shard.
@@ -21,8 +21,14 @@ ok = macula_rag:configure(Pool, RealmId,
        #{org => <<"acme">>,
          shard_id => <<"acme-docs-eu">>,
          realm_name => <<"io.macula">>,
-         embedding => #{model => <<"nomic-embed-text">>, dim => 768}}).
+         embedding => #{model => <<"nomic-embed-text">>, dim => 768},
+         auth => {callers, members}}).
 ```
+
+`auth` says who may call this node's shard procedure, in the form macula's
+`advertise/5` takes: `{callers, members}` for any realm member, `open` for any
+identified caller. It has no default, because macula has none (macula#147):
+without it `configure/3` returns `{error, {auth, required}}`.
 
 `configure/3` refuses a `realm_name` whose SHA-256 is not `RealmId`, and an org
 that cannot be a procedure namespace (empty, `_`, or holding a `/`).

@@ -1,7 +1,8 @@
 %%% @doc What the org's shards hold: the summaries they publish, this node's
 %%% own included.
 %%%
-%%% Subscribes to the org's two shard facts and keeps the latest summary of
+%%% Subscribes to the org's two shard facts, from the nodes the org delegated
+%%% (`sources => {org, Org}'), and keeps the latest summary of
 %%% each shard BY ITS VERIFIED PUBLISHER, the node id macula delivered the fact
 %%% with, whatever the payload claims. A withdrawal removes it. A summary not
 %%% republished within three republish periods is stale and treated as absent,
@@ -148,7 +149,8 @@ subscriptions(#{pool := Pool, realm := Realm, realm_name := Name, org := Org,
                 io := #{subscribe := Subscribe, unsubscribe := Unsubscribe}}) ->
     [{Ref, Fact, Pool, Unsubscribe}
      || Fact <- [shard_summarized, shard_withdrawn],
-        {ok, Ref} <- [Subscribe(Pool, Realm, macula_rag_contract:topic(Name, Org, Fact), self())]].
+        {ok, Ref} <- [Subscribe(Pool, Realm, macula_rag_contract:topic(Name, Org, Fact), self(),
+                                 #{sources => {org, Org}})]].
 
 %% `Fun(Config)' under the configuration in force, or nothing when there is none.
 each_config(Fun) -> configured(macula_rag:configuration(), Fun).

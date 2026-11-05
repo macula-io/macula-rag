@@ -24,7 +24,7 @@ run(Test, NodeId, ShardId, Embedding, Hits) ->
     macula_rag_shard_peer_published = ets:new(macula_rag_shard_peer_published, [named_table, public, bag]),
     {ok, _Sup} = macula_rag_sup:start_link(),
     ok = macula_rag:configure(self(), crypto:hash(sha256, ?REALM_NAME),
-                              #{org => <<"acme">>, shard_id => ShardId, realm_name => ?REALM_NAME,
+                              #{org => <<"acme">>, shard_id => ShardId, realm_name => ?REALM_NAME, auth => open,
                                 embedding => Embedding, io => io(NodeId)}),
     ok = macula_rag:register_responder(fun(_Query, #{top_k := K}) -> {ok, lists:sublist(Hits, K)} end),
     ok = macula_rag:advertise([<<"topic">>], <<0>>),
@@ -35,7 +35,7 @@ io(NodeId) ->
     #{provider_authorization => fun(_Pool, _Realm, _Proc) -> {ok, #{}} end,
       advertise => fun(_Pool, _Realm, _Proc, _Handler, _Opts) -> ok end,
       unadvertise => fun(_Pool, _Realm, _Proc) -> ok end,
-      subscribe => fun(_Pool, _Realm, _Topic, _Pid) -> {ok, make_ref()} end,
+      subscribe => fun(_Pool, _Realm, _Topic, _Pid, #{sources := {org, _}}) -> {ok, make_ref()} end,
       unsubscribe => fun(_Pool, _Ref) -> ok end,
       publish => fun(_Pool, _Realm, Topic, Payload) ->
                          true = ets:insert(macula_rag_shard_peer_published, {published, Topic, Payload}),
